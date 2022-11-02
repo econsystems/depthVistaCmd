@@ -1,9 +1,14 @@
 
 
-# DepthVistaCmd : Command Line application with DepthVistaSDK
+# DepthVistaCmd : Command Line application with DepthVistaSDK (CPP & Python)
 
 Sample command line application, opens the device, gets stream, and enables the user to control some basic TOF Camera Controls. 
 
+## Supported Platformas:
+
+* Windows 8.1 , 10 , 11
+* Ubuntu 18.04 , 20.04 (64 bit )
+* ARM - Ubuntu 18.04
 
 ## Supported Camera controls:
 
@@ -31,6 +36,13 @@ Sample command line application, opens the device, gets stream, and enables the 
 ## Release
 
 * DepthVistaCmd v1.0.0		-	05-Sep-2022
+* DepthVistaCmd v1.0.1		-	02-Nov-2022
+
+## What's new
+
+* Added Python Support for Windows & Linux
+* Added Support Packages for Ubuntu 20.04 
+* Added IMU Application for Windows & Linux
 
 ## Support
 
