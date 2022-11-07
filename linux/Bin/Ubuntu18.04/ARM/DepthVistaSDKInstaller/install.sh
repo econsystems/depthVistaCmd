@@ -7,7 +7,7 @@
 # the package directory prefix, for example: /tmp/moped/
 PREFIX="$1"
 STARTDIR=$PWD
-LIBDIR="$PREFIX/usr/local/lib"
+LIBDIR="$PREFIX/usr/lib"
 SHAREDIR="$PREFIX/usr/local/share"
 INCLUDEDIR="$PREFIX/usr/local/include"
 
@@ -31,10 +31,12 @@ if [ ! -d "DepthVistaSDK" ]; then
 	mkdir DepthVistaSDK
 fi
 cd $STARTDIR
-cp include/* $INCLUDEDIR/DepthVistaSDK
+cp -r include/* $INCLUDEDIR/DepthVistaSDK
 echo "Include done\n"
 
 cp lib/* $LIBDIR/
+rsync -l lib/libDepthVistaSDK.so* $LIBDIR/
+rsync -l lib/libopencv_world.so* $LIBDIR/
 echo "Lib done\n"
 
 

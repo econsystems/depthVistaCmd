@@ -143,7 +143,7 @@ class MainClass:
     setPlanarization.restype = ctypes.c_int
     setPlanarization.argtypes = [ctypes.c_uint16]
 
-    readfirmwareVersion = depthVistaLib.readFirmwareVersion
+    readfirmwareVersion = depthVistaLib.ReadFirmwareVersion
     readfirmwareVersion.restype = ctypes.c_int
     readfirmwareVersion.argtypes = [ctypes.POINTER(ctypes.c_uint8), ctypes.POINTER(ctypes.c_uint8), ctypes.POINTER(ctypes.c_uint16), ctypes.POINTER(ctypes.c_uint16)]
 

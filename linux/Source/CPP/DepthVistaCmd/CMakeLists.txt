@@ -7,11 +7,9 @@ set(CMAKE_INCLUDE_CURRENT_DIR ON)
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-find_package(OpenCV REQUIRED)
-
 add_executable(DepthVistaConsole
 DepthVistaConsoleApp.cpp
 )
 
-target_link_libraries(DepthVistaConsole PRIVATE pthread ${OpenCV_LIBRARIES} DepthVistaSDK)
-target_include_directories(DepthVistaConsole PRIVATE ${OpenCV_INCLUDE_DIRS} ${DEPTHVISTA_INCLUDE_DIRS})
+target_link_libraries(DepthVistaConsole PRIVATE pthread DepthVistaSDK libopencv_world.so.4.2.0 )
+target_include_directories(DepthVistaConsole PRIVATE ${DEPTHVISTA_INCLUDE_DIRS} /usr/local/include/DepthVistaSDK)

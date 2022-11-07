@@ -24,7 +24,8 @@
 #endif
 #include <math.h>
 #include "DepthVistaSDK/DepthVista.h"
-#include "opencv2/opencv.hpp"
+#include "opencv2/imgproc/imgproc.hpp"
+#include "opencv2/highgui/highgui.hpp"
 
 #define		M_PI				3.14159265358979323846
 #define		HALF_PI				(M_PI / 2)

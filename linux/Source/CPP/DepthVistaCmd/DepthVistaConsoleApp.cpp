@@ -14,7 +14,8 @@
 #endif
 
 #ifdef __linux__
-#include "opencv2/opencv.hpp"
+#include "opencv2/imgproc/imgproc.hpp"
+#include "opencv2/highgui/highgui.hpp"
 #include "DepthVistaSDK/DepthVista.h"
 #include <string.h>
 #include <pthread.h>
