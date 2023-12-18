@@ -34,9 +34,9 @@ cd $STARTDIR
 cp -r include/* $INCLUDEDIR/DepthVistaSDK
 echo "Include done\n"
 
-cp lib/* $LIBDIR/
-rsync -l lib/libDepthVistaSDK.so* $LIBDIR/
-rsync -l lib/libopencv_world.so* $LIBDIR/
+cp so/* $LIBDIR/
+rsync -l so/libDepthVistaSDK.so* $LIBDIR/
+rsync -l so/libopencv_world.so* $LIBDIR/
 echo "Lib done\n"
 
 

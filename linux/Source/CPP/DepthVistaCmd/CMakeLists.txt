@@ -11,5 +11,5 @@ add_executable(DepthVistaConsole
 DepthVistaConsoleApp.cpp
 )
 
-target_link_libraries(DepthVistaConsole PRIVATE pthread DepthVistaSDK libopencv_world.so.4.2.0 )
+target_link_libraries(DepthVistaConsole PRIVATE pthread DepthVistaSDK /usr/lib/libopencv_world.so.4.2.0 )
 target_include_directories(DepthVistaConsole PRIVATE ${DEPTHVISTA_INCLUDE_DIRS} /usr/local/include/DepthVistaSDK)

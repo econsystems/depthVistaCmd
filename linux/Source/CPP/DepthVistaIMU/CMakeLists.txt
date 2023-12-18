@@ -12,5 +12,5 @@ DepthVistaIMU.cpp
 DepthVistaIMU.h
 )
 
-target_link_libraries(DepthVistaIMU PRIVATE pthread DepthVistaSDK libopencv_world.so.4.2.0 )
+target_link_libraries(DepthVistaIMU PRIVATE pthread DepthVistaSDK /usr/lib/libopencv_world.so.4.2.0 )
 target_include_directories(DepthVistaIMU PRIVATE ${DEPTHVISTA_INCLUDE_DIRS} /usr/local/include/DepthVistaSDK)

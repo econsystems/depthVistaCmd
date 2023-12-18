@@ -14,7 +14,8 @@
 #endif
 
 #ifdef __linux__
-#include "opencv2/opencv.hpp"
+#include "opencv2/imgproc/imgproc.hpp"
+#include "opencv2/highgui/highgui.hpp"
 #include "DepthVistaSDK/DepthVista.h"
 #include <string.h>
 #include <pthread.h>
@@ -43,12 +44,12 @@ using namespace std;
 using namespace cv;
 
 #define EXIT				0
-#define SDK_VERSION			"1.0.0.1"
+#define SDK_VERSION			"1.0.3"
 
 //Variable Declarations
 uint32_t                devices;
 DeviceInfo*				gDevicesList;
-DataMode                cDataMode = Depth_IR_RGB_VGA_Mode;
+DataMode                cDataMode = ModeUnknown;
 uint16_t                cDepthRange = 1;
 uint8_t                 cPlanarizationState = 0;
 uint8_t                 gUndistortionState = 0;
@@ -70,6 +71,7 @@ bool                    startSavingFrames = false;
 bool                    DepthFrameSaveStatus = false;
 bool                    IRFrameSaveStatus = false;
 bool                    RGBFrameSaveStatus = false;
+bool                    Depthstreamstarted = false;
 char                    depthFrameFileNameBuf[240], IRFrameFileNameBuf[240], RGBFrameFileNameBuf[240], depthRawFrameFileNameBuf[240];
 mutex                   guardMutex;
 
@@ -114,6 +116,7 @@ bool bPreviewSet(int tid, bool bPrev)
 */
 void startStream()
 {
+    //SetAvgRegion(AvgRegion::MouseDepthPtr);
     if (cDataMode == Depth_IR_RGB_HD_Mode || cDataMode == RGB_HD_Mode)
     {
         UYVYFrame.release();
@@ -151,6 +154,17 @@ void startStream()
     bPreviewSet(1, true);
 }
 
+void mouseCallBck(int event, int x, int y, int flages, void* userdata)
+{
+    if (event == EVENT_LBUTTONDOWN)
+    {
+        DepthPtr liveDepthPtr;
+        liveDepthPtr.X = x;
+        liveDepthPtr.Y = y;
+        SetDepthPos(liveDepthPtr);
+    }
+}
+
 
 #ifdef _WIN32
 /**
@@ -162,7 +176,7 @@ void preview()
     uint32_t failCount = 0;
     struct timeval tv, res;
     struct tm tm;
-
+    Point xyPt;
     while (true)
     {
         while (bPreviewSet(2, true))
@@ -177,10 +191,14 @@ void preview()
                 // To get Depth Color Map frame
                 if (cDataMode != IR_Mode && cDataMode <= Depth_IR_RGB_HD_Mode) {
                     if (GetToFFrame(FrameType::DepthColorMap, &ToFDepthColorMapFrame) > 0) {
+						Depthstreamstarted = true;
                         Depthcolormap.data = (uchar*)ToFDepthColorMapFrame.frame_data;
                         namedWindow("DepthVista DepthColorMap", WINDOW_AUTOSIZE);
-                        imshow("DepthVista DepthColorMap", Depthcolormap);
-
+						if (!Depthcolormap.empty())
+						{
+							imshow("DepthVista DepthColorMap", Depthcolormap);
+                            setMouseCallback("DepthVista DepthColorMap", mouseCallBck, NULL);
+						}
                         if (startSavingFrames)
                         {
                             sprintf(depthFrameFileNameBuf, "DepthVista_Depth_%d_%d_%d_%d_%d_%d.bmp", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
@@ -192,7 +210,7 @@ void preview()
                             if (GetToFFrame(FrameType::DepthRawFrame, &ToFDepthRawFrame) > 0) {
                                 DepthImg_Y16.data = ToFDepthRawFrame.frame_data;
                             }
-                            sprintf(depthRawFrameFileNameBuf, "DepthVista_raw_%d_%d_%d_%d_%d_%d.raw", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+                            sprintf(depthRawFrameFileNameBuf, "DepthVista_Raw_%d_%d_%d_%d_%d_%d.raw", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
                             FILE* fp;
                             fp = fopen(depthRawFrameFileNameBuf, "wb+");
                             fwrite(DepthImg_Y16.data, DepthImg_Y16.total() * DepthImg_Y16.channels() * DepthImg_Y16.elemSize1(), 1, fp);
@@ -239,13 +257,12 @@ void preview()
                         }
                     }
                 }
-                if (saveFrames)
+                if (startSavingFrames)
                 {
                     startSavingFrames = saveFrames = false;
                                         SetEvent(saveEvent);
                 }
             }
-
             keyPressed = waitKey(5);
             while (bSwitch)
             {
@@ -253,6 +270,7 @@ void preview()
                 destroyAllWindows();
             }
         }
+		Depthstreamstarted = false;
     }
 }
 #elif __linux__
@@ -263,8 +281,8 @@ void preview()
 */
 void *stream(void* arg)
 {
-    uint32_t failCount = 0;
-    struct timeval tv, res;
+//    uint32_t failCount = 0;
+//    struct timeval tv, res;
     struct tm* tm;
     char cwd[256];
 
@@ -285,9 +303,14 @@ void *stream(void* arg)
                 // To get Depth Color Map frame
                 if (cDataMode != IR_Mode && cDataMode <= Depth_IR_RGB_HD_Mode) {
                     if (GetToFFrame(FrameType::DepthColorMap, &ToFDepthColorMapFrame) > 0) {
+                        Depthstreamstarted = true;
                         Depthcolormap.data = (uchar*)ToFDepthColorMapFrame.frame_data;
                         namedWindow("DepthVista DepthColorMap", WINDOW_AUTOSIZE);
-                        imshow("DepthVista DepthColorMap", Depthcolormap);
+						if (!Depthcolormap.empty())
+						{
+							imshow("DepthVista DepthColorMap", Depthcolormap);
+                            setMouseCallback("DepthVista DepthColorMap", mouseCallBck, NULL);
+						}
 
                         if (startSavingFrames)
                         {
@@ -300,13 +323,12 @@ void *stream(void* arg)
                             if (GetToFFrame(FrameType::DepthRawFrame, &ToFDepthRawFrame) > 0) {
                                 DepthImg_Y16.data = ToFDepthRawFrame.frame_data;
                             }
-							sprintf(depthRawFrameFileNameBuf, "%s/DepthVista_raw_%d_%d_%d_%d_%d_%d.raw", cwd, tm->tm_year + 1900, tm->tm_mon + 1, tm->tm_mday, tm->tm_hour, tm->tm_min, tm->tm_sec);
+                            sprintf(depthRawFrameFileNameBuf, "%s/DepthVista_Raw_%d_%d_%d_%d_%d_%d.raw", cwd, tm->tm_year + 1900, tm->tm_mon + 1, tm->tm_mday, tm->tm_hour, tm->tm_min, tm->tm_sec);
                             FILE* fp;
                             fp = fopen(depthRawFrameFileNameBuf, "wb+");
                             fwrite(DepthImg_Y16.data, DepthImg_Y16.total() * DepthImg_Y16.channels() * DepthImg_Y16.elemSize1(), 1, fp);
                             fclose(fp);
                             cout << endl << "Raw Depth frame is successfully saved as " << depthRawFrameFileNameBuf << endl;
-
                         }
                     }
                 }
@@ -347,7 +369,7 @@ void *stream(void* arg)
                         }
                     }
                 }
-                if (saveFrames)
+                if (startSavingFrames)
                 {
                     startSavingFrames = saveFrames = false;
                 }
@@ -360,13 +382,10 @@ void *stream(void* arg)
                 destroyAllWindows();
             }
         }
+        Depthstreamstarted = false;
     }
 }
 #endif
-
-
-
-
 
 int main()
 {
@@ -502,12 +521,22 @@ bool listDevices()
             pError("OpenDevice:");
             return false;
         }
+        if (GetDataMode(&cDataMode) < 0) {
+            pError("GetDataMode");
+        }
+        if (GetDepthRange(&cDepthRange) < 0) {
+            pError("GetDepthRange");
+        }
+        if(SetAvgRegion((AvgRegion)1) < 0) {
+            pError("GetAvgRegion");
+        }
         break;
     }
 #ifdef _WIN32
     bDetach = true;
 	saveEvent = CreateEvent(NULL, FALSE, FALSE, L"frameCaptureEvent");
 #endif
+	startStream();
     return true;
 }
 
@@ -594,6 +623,107 @@ bool selectStreamingMode()
     }
     startStream();
     return true;
+}
+
+/**
+* @brief 		Setting depth value Mode of the Device
+* @return		bool    return true on successfully setting the stream mode of the device, else retuns fail.
+*/
+bool selectGetDepthValue()
+{
+    int avgDepth, stdDepth, avgIR, stdIR;
+    DepthPtr cor;
+
+    cout << '\t' << "0 - Exit" << endl;
+    cout << '\t' << "1 - Back" << endl;
+    cout << '\t' << "2 - Main Menu" << endl;
+    cout << '\t' << "3 - Centre" << endl;
+    cout << '\t' << "4 - Custom co-ordinate" << endl;
+
+    int option = -1;
+    while ((option < 0) || (option >= 5))
+    {
+        printf("\n Pick a Relevant Depth value position: \t");
+        scanf("%d", &option);
+        while (getchar() != '\n' && getchar() != EOF)
+        {
+        }
+    }
+
+    switch (option)
+    {
+        case EXIT:
+            bSwitch = true;
+            bPreviewSet(1, false);
+    #ifdef _WIN32
+            if (bDetach)
+                previewThread.detach();
+    #endif
+            if (CloseDevice() > 0)
+            {
+                if (DeInitialize() > 0)
+                {
+                    destroyAllWindows();
+
+                }
+            }
+            exit(0);
+        case 1:
+        case 2:
+            exploreCam();
+            break;
+
+        case 3:
+            if(GetDepthIRValues(&avgDepth, &stdDepth, &avgIR, &stdIR) < 1)
+            {
+                return false;
+            }
+            else
+            {
+                cout<<"\nDepth Value : "<<avgDepth<<endl;
+            }
+            break;
+
+        case 4:
+            cor.X = -1;
+            while ((cor.X < 16) || (cor.X >= 624))
+			{
+                printf("\n Enter X co-ordinate between the range 17 to 624 : \t");
+                scanf("%d", &cor.X);
+				while (getchar() != '\n' && getchar() != EOF)
+                {
+				}
+			}
+			cor.Y = -1;
+            while ((cor.Y < 16) || (cor.Y >= 464))
+			{
+                printf("\n Enter Y co-ordinate between the range 17 to 464 : \t");
+                scanf("%d", &cor.Y);
+				while (getchar() != '\n' && getchar() != EOF)
+				{
+				}
+			}
+            if(SetDepthPos(cor) < 1)
+            {
+                cout<<"\nFailed to set depth position"<<endl;
+                return false;
+            }
+            else
+            {
+                if(GetDepthIRValues(&avgDepth, &stdDepth, &avgIR, &stdIR) < 1)
+                {
+                    cout<<"\nFailed to get depth value"<<endl;
+                    return false;
+                }
+                else
+                {
+                    cout<<"\nDepth Value : "<<avgDepth<<endl;
+                }
+            }
+            break;
+    }
+    return true;
+
 }
 
 
@@ -746,6 +876,7 @@ bool depthUndistortion()
     cout << '\t' << "4 - Undistortion ON" << endl;
 
     int option = -1;
+    int returnVal;
     while ((option < 0) || (option >= 5))
     {
         printf("\n Pick a Relevant Option: \t");
@@ -782,9 +913,13 @@ bool depthUndistortion()
     default:
         if (gUndistortionState != option - 3)
         {
-            if (SetUnDistortion(option - 3) < 0) {
+            returnVal = SetUnDistortion(option - 3);
+            if (returnVal < 0 && returnVal != Result::RGB_DCalibNotFound) {
                 pError("SetUndistortion");
                 return false;
+            }
+            else if(returnVal == Result::RGB_DCalibNotFound) {
+                cout << endl << "RGBD Calibration data not found. Depth Undistortion ON failed" << endl;
             }
             gUndistortionState = option - 3;
         }
@@ -820,9 +955,10 @@ bool exploreCam()
         cout << '\t' << "6 - Capture Frames" << endl;
         cout << '\t' << "7 - Unique ID" << endl;
         cout << '\t' << "8 - Read Firmware Version" << endl;
+        cout << '\t' << "9 - Get Depth value" <<endl;
 
 
-        while ((choice < 0) || (choice >= 9))
+        while ((choice < 0) || (choice >= 10))
         {
             printf("\n Pick a Relevant Choice of Camera Properties : \t");
             scanf("%d", &choice);
@@ -856,7 +992,6 @@ bool exploreCam()
                 cout << endl << "List Devices Information failed" << endl;
                 return false;
             }
-            cout << endl << "Connected Devices were Listed" << endl;
             break;
 
         case 2:
@@ -865,7 +1000,6 @@ bool exploreCam()
                 cout << endl << "Data Mode Selection Failed" << endl;
                 return false;
             }
-            cout << endl << "Data Mode Selected" << endl;
             break;
 
         case 3:
@@ -874,7 +1008,6 @@ bool exploreCam()
                 cout << endl << "Depth Range Selection Failed" << endl;
                 return false;
             }
-            cout << endl << "Depth Range Selected" << endl;
             break;
 
         case 4:
@@ -883,7 +1016,6 @@ bool exploreCam()
                 cout << endl << "Depth Planarization Failed" << endl;
                 return false;
             }
-            cout << endl << "Depth Planarization success" << endl;
             break;
 
         case 5:
@@ -892,7 +1024,6 @@ bool exploreCam()
                 cout << endl << "Depth Undistortion Failed" << endl;
                 return false;
             }
-            cout << endl << "Depth Undistortion success" << endl;
             break;
 
         case 6:
@@ -906,20 +1037,20 @@ bool exploreCam()
                 #ifdef _WIN32
 				while (1)
 				{
-					DWORD dWait = WaitForSingleObject(saveEvent, 100);
+					DWORD dWait = WaitForSingleObject(saveEvent, 200);
 					if (dWait != WAIT_TIMEOUT)
 					{
 						break;
 					}
 				}
-				cout << "After wait" << endl;
-#elif __linux__
-                std::this_thread::sleep_for(std::chrono::milliseconds(100));
-#endif
+				#elif __linux__
+                std::this_thread::sleep_for(std::chrono::milliseconds(200));
+				#endif
             }
-            else
-                cout << endl << "Image Capture Failed, Please start preview before capturing frames" << endl;
-            cout << endl << "Frame Capture ends" << endl;
+			else {
+				cout << endl << "Image Capture Failed, Please start preview before capturing frames" << endl;
+			}
+            cout << endl << "Frame Capture complete" << endl;
 
             break;
 
@@ -931,6 +1062,21 @@ bool exploreCam()
         case 8:
             ReadFirmwareVersion(&gMajorVersion, &gMinorVersion1, &gMinorVersion2, &gMinorVersion3);
             cout << endl << "Firmware Version : " << (uint16_t)gMajorVersion << "." << (uint16_t)gMinorVersion1 << "." << gMinorVersion2 << "." << gMinorVersion3 << endl;
+            break;
+
+        case 9:
+            if(Depthstreamstarted)
+            {
+                if (!selectGetDepthValue())
+                {
+                    cout << endl << "Get Depth value Failed" << endl;
+                    return false;
+                }
+            }
+            else
+            {
+                cout<<endl<<" Start Depth stream to get depth value"<<endl;
+            }
             break;
 
         }
