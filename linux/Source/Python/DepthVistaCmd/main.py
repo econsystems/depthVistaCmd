@@ -9,10 +9,16 @@ from enum import Enum
 from datetime import datetime
 import sys
 
-depth_min = 500
-depth_max = 3250
+depth_min = 1000
+depth_max = 6000
 depth_range = (depth_max-depth_min)*0.20
-
+calibParamObtained = False
+depth_intrinsic = None
+rgb_intrinsic = None
+rgbHD_intrinsic = None
+rgbdMappingflag = False
+hdCalibration = False
+captureDone = False
 PRE_RGB_VGA_WIDTH = PRE_DEPTH_WIDTH = PRE_IR_WIDTH = 640
 PRE_RGB_VGA_HEIGHT = PRE_DEPTH_HEIGHT = PRE_IR_HEIGHT = 480
 
@@ -33,11 +39,17 @@ PRE_RGB_ORIGINAL_HEIGHT = 1200
 '''
 class tofFrame(ctypes.Structure):
     _fields_ = [ ("frame_data",ctypes.POINTER(ctypes.c_uint8)),
-                 ("width",ctypes.c_int16),
-                 ("height",ctypes.c_int16),
-                 ("pixel_format",ctypes.c_int8),
-                 ("total_size",ctypes.c_uint32)
+                 ("width",ctypes.c_uint16),
+                 ("height",ctypes.c_uint16),
+                 ("pixel_format",ctypes.c_uint8),
+                 ("size",ctypes.c_uint32),
+                 ("time_stamp", ctypes.c_uint64)
                ]
+'''
+    Defining DeviceHandle Structure using ctypes
+'''
+class DeviceHandle(ctypes.Structure):
+    _fields_ = [ ("serialNo", ctypes.c_char * 50)]
 
 '''
     Defining DeviceInfo Structure using ctypes
@@ -46,7 +58,7 @@ class DeviceInfo(ctypes.Structure):
     _fields_ = [  ("deviceName",ctypes.c_char * 50),
                   ("vid",ctypes.c_char * 5),
                   ("pid",ctypes.c_char * 5),
-                  ("devicePath",ctypes.c_char * 250),
+                  ("devicePath",ctypes.c_char * 500),
                   ("serialNo",ctypes.c_char * 50)
                ]
 
@@ -62,9 +74,7 @@ class DepthPtr(ctypes.Structure):
     Defining Datamode Enum
 '''
 class DataMode(Enum):
-    ModeUnknown = 255
     Depth_IR_Mode = 0
-    Raw_Mode = 254
     Depth_Mode = 2
     IR_Mode = 3
     Depth_IR_RGB_VGA_Mode = 4
@@ -72,7 +82,7 @@ class DataMode(Enum):
     RGB_VGA_Mode = 6
     RGB_HD_Mode = 7
     RGB_Full_HD_Mode = 8
-    RGB_Original_Mode = 9
+    RGB_1200p_Mode = 9
 
 '''
     Defining DepthRange Enum
@@ -85,15 +95,10 @@ class DepthRange(Enum):
     Defining FrameType Enum
 '''
 class FrameType(Enum):
-	RawIRFrame = 0
-	DepthPreviewFrame = 1
-	IRPreviewFrame = 2
-	DepthColorMap = 3
-	RGBFrame = 4
-	DepthIrRgbRawFrame = 5
-	DepthIrRawFrame = 6
-	DepthRawFrame = 7
-	IRRawFrame = 8
+	IRPreviewFrame = 0
+	DepthColorMap = 1
+	RGBFrame = 2
+	DepthRawFrame = 3
 
 '''
     Defining AvgRegion Enum
@@ -124,85 +129,111 @@ class MainClass:
     getDeviceInfoResult = depthVistaLib.GetDeviceInfo
     getDeviceInfoResult.restype = ctypes.c_int
     getDeviceInfoResult.argtypes = [ctypes.c_uint32, ctypes.POINTER(DeviceInfo)]
+
+    getDeviceListInfoResult = depthVistaLib.GetDeviceListInfo
+    getDeviceListInfoResult.restype = ctypes.c_int
+    getDeviceListInfoResult.argtypes = [ctypes.c_uint32, ctypes.POINTER(DeviceInfo)]
     
     openDeviceResult =  depthVistaLib.OpenDevice
     openDeviceResult.restype = ctypes.c_int
-    openDeviceResult.argtypes = [ctypes.c_uint32]
+    openDeviceResult.argtypes = [DeviceInfo, ctypes.POINTER(DeviceHandle)]
 
     isOpenResult = depthVistaLib.IsOpened
     isOpenResult.restype = ctypes.c_int
+    isOpenResult.argtypes = [ DeviceHandle ]
 
     closeDeviceResult = depthVistaLib.CloseDevice
     closeDeviceResult.restype = ctypes.c_int
+    closeDeviceResult.argtypes = [ DeviceHandle ]
 
     deinitializeResult = depthVistaLib.DeInitialize
     deinitializeResult.restype = ctypes.c_int
 
-    setdatamodevar = depthVistaLib.SetDataMode
-    setdatamodevar.restype = ctypes.c_int
-    setdatamodevar.argtypes = [ctypes.c_int32]
+    setdataMode = depthVistaLib.SetDataMode
+    setdataMode.restype = ctypes.c_int
+    setdataMode.argtypes = [DeviceHandle, ctypes.c_int32]
 
     getDataMode = depthVistaLib.GetDataMode
     getDataMode.restype = ctypes.c_int
-    getDataMode.argtypes = [ ctypes.POINTER(ctypes.c_int32) ]
+    getDataMode.argtypes = [DeviceHandle, ctypes.POINTER(ctypes.c_int32) ]
 
     setDepthRange = depthVistaLib.SetDepthRange
     setDepthRange.restype = ctypes.c_int
-    setDepthRange.argtypes = [ctypes.c_uint16]
+    setDepthRange.argtypes = [DeviceHandle, ctypes.c_uint16]
 
     getDepthRange = depthVistaLib.GetDepthRange
     getDepthRange.restype = ctypes.c_int
-    getDepthRange.argtypes = [ ctypes.POINTER(ctypes.c_int16) ]
+    getDepthRange.argtypes = [DeviceHandle, ctypes.POINTER(ctypes.c_int16) ]
 
     nextFrameResult = depthVistaLib.GetNextFrame
     nextFrameResult.restype = ctypes.c_int
+    nextFrameResult.argtypes = [ DeviceHandle ]
 
     ToFFrameResult = depthVistaLib.GetToFFrame
     ToFFrameResult.restype = ctypes.c_int
-    ToFFrameResult.argtypes = [ctypes.c_uint32, ctypes.POINTER(tofFrame)]
+    ToFFrameResult.argtypes = [DeviceHandle, ctypes.c_uint32, ctypes.POINTER(tofFrame)]
     
     updateColorMapRes = depthVistaLib.UpdateColorMap
     updateColorMapRes.restype = ctypes.c_int
-    updateColorMapRes.argtypes = [ctypes.c_int32, ctypes.c_int32, ctypes.c_int32]
+    updateColorMapRes.argtypes = [DeviceHandle, ctypes.c_int32, ctypes.c_int32, ctypes.c_int32]
 
     setPlanarization = depthVistaLib.SetPlanarization
     setPlanarization.restype = ctypes.c_int
-    setPlanarization.argtypes = [ctypes.c_uint16]
+    setPlanarization.argtypes = [DeviceHandle, ctypes.c_uint16]
+
+    setRGBDMapping = depthVistaLib.SetRGBDMapping
+    setRGBDMapping.restype = ctypes.c_int
+    setRGBDMapping.argtypes = [DeviceHandle, ctypes.c_uint16]
 
     setUnDistortion = depthVistaLib.SetUnDistortion
     setUnDistortion.restype = ctypes.c_int
-    setUnDistortion.argtypes = [ctypes.c_uint16]
+    setUnDistortion.argtypes = [DeviceHandle, ctypes.c_uint16]
 
     setAvgRegion = depthVistaLib.SetAvgRegion
     setAvgRegion.restype = ctypes.c_int
-    setAvgRegion.argtypes = [ctypes.c_uint16]
+    setAvgRegion.argtypes = [DeviceHandle, ctypes.c_uint16]
+
+    getSDKVersion = depthVistaLib.GetSDKVersion
+    getSDKVersion.restype = ctypes.c_int
+    getSDKVersion.argtypes = [ctypes.POINTER(ctypes.c_uint8), ctypes.POINTER(ctypes.c_uint8), ctypes.POINTER(ctypes.c_uint16)]
 
     readfirmwareVersion = depthVistaLib.ReadFirmwareVersion
     readfirmwareVersion.restype = ctypes.c_int
-    readfirmwareVersion.argtypes = [ctypes.POINTER(ctypes.c_uint8), ctypes.POINTER(ctypes.c_uint8), ctypes.POINTER(ctypes.c_uint16), ctypes.POINTER(ctypes.c_uint16)]
+    readfirmwareVersion.argtypes = [DeviceHandle, ctypes.POINTER(ctypes.c_uint8), ctypes.POINTER(ctypes.c_uint8), ctypes.POINTER(ctypes.c_uint16), ctypes.POINTER(ctypes.c_uint16)]
 
     getDepthIRValues = depthVistaLib.GetDepthIRValues
     getDepthIRValues.restype = ctypes.c_int
-    getDepthIRValues.argtypes = [ctypes.POINTER(ctypes.c_int), ctypes.POINTER(ctypes.c_int), ctypes.POINTER(ctypes.c_int), ctypes.POINTER(ctypes.c_int)]
+    getDepthIRValues.argtypes = [DeviceHandle, ctypes.POINTER(ctypes.c_int), ctypes.POINTER(ctypes.c_int), ctypes.POINTER(ctypes.c_int), ctypes.POINTER(ctypes.c_int)]
 
     setDepthPos = depthVistaLib.SetDepthPos
     setDepthPos.restype = ctypes.c_int
-    setDepthPos.argtypes = [DepthPtr]
+    setDepthPos.argtypes = [DeviceHandle, DepthPtr]
 
     getUniqueID = depthVistaLib.GetUniqueID
     getUniqueID.restype = ctypes.c_int
-    getUniqueID.argtypes = [ctypes.POINTER(ctypes.c_uint64)]
+    getUniqueID.argtypes = [DeviceHandle, ctypes.POINTER(ctypes.c_uint64)]
+
+    calibReadReqDepthIntrinsicRes = depthVistaLib.CalibReadReqDepthIntrinsic
+    calibReadReqDepthIntrinsicRes.restype = ctypes.c_int
+    calibReadReqDepthIntrinsicRes.argtypes = [DeviceHandle, ctypes.POINTER(c_int)]
+
+    calibReadDepthInstrinsicRes = depthVistaLib.CalibReadDepthIntrinsic
+    calibReadDepthInstrinsicRes.restype = ctypes.c_int
+    calibReadDepthInstrinsicRes.argtypes = [DeviceHandle, ctypes.POINTER(c_int), ctypes.POINTER(c_ubyte)]
 
     Thread_end = threading.Event()
     modechange = threading.Event()
 
-    ToFFrame = tofFrame()
+    ToFFrameDepth = tofFrame()
+    ToFFrameRGB = tofFrame()
+    ToFFrameIR = tofFrame()
 
     GetNextFrameThread = threading.Thread()
     
     thread_lock_flag = False
     thread_lock = threading.Lock()
 
+    deviceHandle = DeviceHandle()
     datamode = DataMode.Depth_IR_RGB_VGA_Mode.value
     depthrange = DepthRange.FarRange.value
 
@@ -210,6 +241,8 @@ class MainClass:
     rgb_cap = False
     IR_cap = False
 
+    deviceSelected = False
+    
     depthStreamStarted = False
 
     save_possible = False
@@ -225,11 +258,17 @@ class MainClass:
         self.device_name = None
         self.No_of_devices = None
         self.serialNo = None
+
+        #Initializing all the APIs in shared library
+        if(self.initializeresult() == 0):
+            print("\nFailed to initialize device")
+            exit(0)
+
         self.main_menu_init()
 
     print(" e-con's Sample Python script for DepthVista ".center(100, " "))
     print(" Demonstrates the working of e-con's DepthVistaSDK ".center(100, " "))
-    print(" DepthVista SDK-Version = 1.0.3 ".center(100, " "))
+    print(" DepthVista SDK-Version =  1.0.9".center(100, " "))
 
     '''
         METHOD NAME : list_devices
@@ -240,61 +279,51 @@ class MainClass:
     def listDevices(self):
 
         #close and deinitialize device if already opened
-        if(self.isOpenResult()==1):
-            self.modechange.set()
-            time.sleep(0.2)
-            self.thread_lock_flag = True
-            if(self.closeDeviceResult()):
-                if(self.deinitializeResult() == 1):
-                    cv2.destroyAllWindows()
+        if(self.deviceSelected == True):
+            self.deviceSelected = False
+            if(self.closeDeviceResult(self.deviceHandle)):
+                self.deviceHandle = DeviceHandle()
+                cv2.destroyAllWindows()
         
-        #Initializing all the APIs in shared library
-        if(self.initializeresult() == 1):
+        numberOfDevices = ctypes.c_uint32 ()
+        if self.deviceCountResult(ctypes.byref(numberOfDevices)) == 1:
+            numberOfDevices = numberOfDevices.value
+            print(f'\nNumber of Depth_vista (TOF) Devices connected: {numberOfDevices}')
+            print("\n\t0.Exit")
 
-            numberOfDevices = ctypes.c_uint32 ()
-            #Getting device count
-            if self.deviceCountResult(ctypes.byref(numberOfDevices)) == 1:
-                numberOfDevices = numberOfDevices.value
-                print(f'\nNumber of Depth_vista (TOF) Devices connected: {numberOfDevices}')
-                print("\n\t0.Exit")
+        #Getting device list information
+        DeviceList = (DeviceInfo * numberOfDevices)()
 
-            #Getting device list information
-            DeviceList = DeviceInfo()
-
-            DeviceList.deviceName = b'None'
-            DeviceList.pid = b'None'
-            DeviceList.vid = b'None'
-            DeviceList.devicePath = b'None'
-            DeviceList.serialNo = b'None'
+        for i in range(numberOfDevices):
+            DeviceList[i].deviceName = b'None'
+            DeviceList[i].pid = b'None'
+            DeviceList[i].vid = b'None'
+            DeviceList[i].devicePath = b'None'
+            DeviceList[i].serialNo = b'None'
 
             #Passing DeviceList By Reference by using byref
-            if(self.getDeviceInfoResult(0 ,ctypes.byref(DeviceList)) == 1):
-
+            if(self.getDeviceInfoResult(i ,ctypes.byref(DeviceList[i])) == 1):
                 #Decoding the byte literals using decode()
-                deviceNameValue = DeviceList.deviceName.decode('utf-8')
-                vidValue        = DeviceList.vid.decode('utf-8')
-                pidValue        = DeviceList.pid.decode('utf-8')
-                devicePathValue = DeviceList.devicePath.decode('utf-8')
-                serialNoValue   = DeviceList.serialNo.decode('utf-8')
+                deviceNameValue = DeviceList[i].deviceName.decode('utf-8')
+                vidValue        = DeviceList[i].vid.decode('utf-8')
+                pidValue        = DeviceList[i].pid.decode('utf-8')
+                devicePathValue = DeviceList[i].devicePath.decode('utf-8')
+                serialNoValue   = DeviceList[i].serialNo.decode('utf-8')
 
-                for i in range(0, 1):
-                    print(f"\t{i + 1}.{deviceNameValue}")
+                print(f"\t{i + 1}.{deviceNameValue}\t{serialNoValue}")
 
-                choice = get_integer("\nPick a Device to explore :\t", 0, 1)
+        choice = get_integer("\nPick a Device to explore :\t", 0, numberOfDevices)
 
-                if choice == 0:
-                    return None
-
-                #Opening the device
-                if(self.openDeviceResult(0) < 1):
-                    print("Error in Opening the Device")
-
-                return numberOfDevices, deviceNameValue, vidValue, pidValue, devicePathValue, serialNoValue
-
-            else:
-                print("\nNo Depthvista device found")
+        if choice == 0:
+            return None
         else:
-            print("\nFailed to initialize device")
+            #Opening the device
+            if(self.openDeviceResult(DeviceList[choice-1], ctypes.byref(self.deviceHandle)) < 1):
+                print("Error in Opening the Device")
+            self.deviceSelected = True
+            self.read_calibration_data()
+        return numberOfDevices, deviceNameValue, vidValue, pidValue, devicePathValue, serialNoValue
+
 
     '''
         METHOD NAME : update_colormap
@@ -302,7 +331,13 @@ class MainClass:
     '''
     def update_colormap(self):
         global depth_min, depth_max, depth_range
-        if(self.updateColorMapRes(depth_min, depth_max + int(depth_range), 4)!=1):
+        if(self.depthrange == 0):
+            depth_min = 200
+            depth_max = 1200
+        elif(self.depthrange == 1):
+            depth_min = 1000
+            depth_max = 6000
+        if(self.updateColorMapRes(self.deviceHandle, depth_min, depth_max + int(depth_range), 4)!=1):
             print("\nUpdate colormap failed")
 
     '''
@@ -310,7 +345,7 @@ class MainClass:
         DESCRIPTION : Provides the preview screen and render frames
     '''
     def Preview(self):
-
+        global depth_intrinsic, rgb_intrinsic, rgbHD_intrinsic, rgbdMappingflag
         while True:
             
             if(self.thread_lock_flag == True):
@@ -326,58 +361,17 @@ class MainClass:
 
                 self.save_possible = True
                 
-                if self.nextFrameResult() == 1:
-                    #Depth colormap frame
-                    if(self.datamode != DataMode.IR_Mode.value) and (self.datamode <= DataMode.Depth_IR_RGB_HD_Mode.value):
-                        frametype = FrameType.DepthColorMap.value
-                        self.update_colormap()
-                        self.depthStreamStarted = True
-
-                        #Acquiring thread lock to avoid race condition
-                        lock = threading.Lock()
-                        lock.acquire()
-
-                        if(self.ToFFrameResult(frametype, ctypes.byref(self.ToFFrame)) == 1):
-                            image_data = np.ctypeslib.as_array(self.ToFFrame.frame_data, (PRE_DEPTH_HEIGHT, PRE_DEPTH_WIDTH, 3))
-
-                            #Releasing thread lock
-                            lock.release()
-
-                            if(lock.locked() == 0):
-                                #capture frame condition
-                                if(self.depth_cap==True):
-                                    time=datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
-                                    file_name = "DepthVista_Depth_"+time+".bmp"
-                                    cv2.imwrite(file_name, image_data)
-                                    self.ToFFrameResult(FrameType.DepthRawFrame.value, ctypes.byref(self.ToFFrame))
-                                    capture_data = np.ctypeslib.as_array(self.ToFFrame.frame_data, (PRE_DEPTH_HEIGHT, PRE_DEPTH_WIDTH, 2))
-                                    file_name = "DepthVista_Raw_"+time+".raw"
-                                    try:
-                                        fp = open(file_name, 'wb+')
-                                        fp.write(capture_data)
-                                        fp.close()
-                                    except IOError:
-                                        print("File operation error.Image is not saved!")
-                                        return False
-                                    self.depth_cap=False
-                                #stream show
-                                cv2.namedWindow("DepthVista_Depthcolormap_frame",cv2.WINDOW_GUI_NORMAL)
-                                cv2.setWindowProperty("DepthVista_Depthcolormap_frame", cv2.WND_PROP_AUTOSIZE, cv2.WINDOW_FULLSCREEN)
-                                cv2.setMouseCallback("DepthVista_Depthcolormap_frame", self.mouseCallBck)
-                                cv2.imshow("DepthVista_Depthcolormap_frame",image_data)
-                                cv2.waitKey(1)
-
-                        else:
-                            print("\nFailed in getting TOF frames")
-
+                if self.nextFrameResult(self.deviceHandle) == 1:
+                    image_data_RGB = None
+                    image_data_Depth = None
                     #rgb frame
-                    if(self.datamode >= DataMode.Depth_IR_RGB_VGA_Mode.value) and (self.datamode != DataMode.Raw_Mode.value):
+                    if(self.datamode >= DataMode.Depth_IR_RGB_VGA_Mode.value):
                         frametype = FrameType.RGBFrame.value
 
                         if(self.datamode == DataMode.RGB_VGA_Mode.value) or (self.datamode == DataMode.Depth_IR_RGB_VGA_Mode.value):
                             rgb_height = PRE_RGB_VGA_HEIGHT
                             rgb_width = PRE_RGB_VGA_WIDTH
-                        if(self.datamode == DataMode.RGB_Original_Mode.value):
+                        if(self.datamode == DataMode.RGB_1200p_Mode.value):
                             rgb_height = PRE_RGB_ORIGINAL_HEIGHT
                             rgb_width = PRE_RGB_ORIGINAL_WIDTH
                         if(self.datamode == DataMode.RGB_HD_Mode.value) or (self.datamode == DataMode.Depth_IR_RGB_HD_Mode.value):
@@ -391,29 +385,83 @@ class MainClass:
                         lock = threading.Lock()
                         lock.acquire()
 
-                        if(self.ToFFrameResult(frametype, ctypes.byref(self.ToFFrame)) == 1):
+                        if(self.ToFFrameResult(self.deviceHandle, frametype, ctypes.byref(self.ToFFrameRGB)) == 1):
+                            if bool(self.ToFFrameRGB.frame_data):
+                                expected_size = rgb_height * rgb_width * 2
+                                actual_size = self.ToFFrameRGB.size
+                                if actual_size == expected_size:
+                                    image_RGB = np.ctypeslib.as_array(self.ToFFrameRGB.frame_data, (rgb_height, rgb_width, 2))
+                                    image_data_RGB = cv2.cvtColor(image_RGB, cv2.COLOR_YUV2BGR_UYVY)
 
-                            image = np.ctypeslib.as_array(self.ToFFrame.frame_data, (rgb_height, rgb_width, 2))
-                            image_data = cv2.cvtColor(image, cv2.COLOR_YUV2BGR_UYVY)
+                                #Releasing thread lock
+                                lock.release()
 
-                            #Releasing thread lock
-                            lock.release()
+                                if(lock.locked() == 0):
+                                    if(self.rgb_cap == True):
+                                        #capture frame condition
+                                        time=datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
+                                        file_name = "DepthVista_rgb_"+time+".png"
+                                        cv2.imwrite(file_name, image_data_RGB)
+                                        self.rgb_cap=False
+                                    #Stream show
+                                    cv2.namedWindow("DepthVista_RGB_frame",cv2.WINDOW_GUI_NORMAL)
+                                    cv2.setWindowProperty("DepthVista_RGB_frame", cv2.WND_PROP_AUTOSIZE, cv2.WINDOW_FULLSCREEN)
+                                    cv2.imshow("DepthVista_RGB_frame",image_data_RGB)
+                                    cv2.waitKey(1)
 
-                            if(lock.locked() == 0):
-                                if(self.rgb_cap == True):
+                    #Depth colormap frame
+                    if(self.datamode != DataMode.IR_Mode.value) and (self.datamode <= DataMode.Depth_IR_RGB_HD_Mode.value):
+                        frametype = FrameType.DepthColorMap.value
+                        self.update_colormap()
+                        self.depthStreamStarted = True
+
+                        #Acquiring thread lock to avoid race condition
+                        lock = threading.Lock()
+                        lock.acquire()
+
+                        if(self.ToFFrameResult(self.deviceHandle, frametype, ctypes.byref(self.ToFFrameDepth)) == 1):
+                            if bool(self.ToFFrameDepth.frame_data):
+                                expected_size = PRE_DEPTH_HEIGHT * PRE_DEPTH_WIDTH * 3
+                                actual_size = self.ToFFrameDepth.size
+                                if actual_size == expected_size:
+                                    image_data_Depth = np.ctypeslib.as_array(self.ToFFrameDepth.frame_data, (PRE_DEPTH_HEIGHT, PRE_DEPTH_WIDTH, 3))
+
+                                #Releasing thread lock
+                                lock.release()
+
+                                if(lock.locked() == 0):
                                     #capture frame condition
-                                    time=datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
-                                    file_name = "DepthVista_rgb_"+time+".png"
-                                    cv2.imwrite(file_name, image_data)
-                                    self.rgb_cap=False
-                                #Stream show
-                                cv2.namedWindow("DepthVista_RGB_frame",cv2.WINDOW_GUI_NORMAL)
-                                cv2.imshow("DepthVista_RGB_frame",image_data)
-                                cv2.setWindowProperty("DepthVista_RGB_frame", cv2.WND_PROP_AUTOSIZE, cv2.WINDOW_FULLSCREEN)
-                                cv2.waitKey(1)
+                                    if(self.depth_cap==True):
+                                        time=datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
+                                        file_name = "DepthVista_Depth_"+time+".bmp"
+                                        cv2.imwrite(file_name, image_data_Depth)
+                                        self.ToFFrameResult(self.deviceHandle, FrameType.DepthRawFrame.value, ctypes.byref(self.ToFFrameDepth))
+                                        frame_data_uint16 = ctypes.cast(self.ToFFrameDepth.frame_data, ctypes.POINTER(ctypes.c_uint16))
+                                        capture_data = np.ctypeslib.as_array(frame_data_uint16, (PRE_DEPTH_HEIGHT, PRE_DEPTH_WIDTH))
+                                        file_name = "DepthVista_Raw_"+time+".raw"
+                                        ply_file_name = "DepthVista_PLY_"+time+".ply"
 
-                        else:
-                            print("\nFailed in getting TOF frames")
+                                        try:
+                                            fp = open(file_name, 'wb+')
+                                            fp.write(capture_data)
+                                            fp.close()
+                                            if rgbdMappingflag:
+                                                if self.datamode == DataMode.Depth_IR_RGB_HD_Mode.value and hdCalibration == True:
+                                                    self.save_ply_files(rgbHD_intrinsic, capture_data, image_data_RGB, ply_file_name)
+                                                else:
+                                                    self.save_ply_files(rgb_intrinsic, capture_data, image_data_RGB, ply_file_name)
+                                            else:
+                                                self.save_ply_files(depth_intrinsic, capture_data, image_data_Depth, ply_file_name)                                            
+                                        except IOError:
+                                            print("File operation error.Image is not saved!")
+                                            return False
+                                        self.depth_cap=False
+                                    #stream show
+                                    cv2.namedWindow("DepthVista_Depthcolormap_frame",cv2.WINDOW_GUI_NORMAL)
+                                    cv2.setWindowProperty("DepthVista_Depthcolormap_frame", cv2.WND_PROP_AUTOSIZE, cv2.WINDOW_FULLSCREEN)
+                                    cv2.setMouseCallback("DepthVista_Depthcolormap_frame", self.mouseCallBck)
+                                    cv2.imshow("DepthVista_Depthcolormap_frame",image_data_Depth)
+                                    cv2.waitKey(1)
 
                     #IR frame
                     if(self.datamode != DataMode.Depth_Mode.value) and (self.datamode <=DataMode.Depth_IR_RGB_HD_Mode.value):
@@ -423,28 +471,29 @@ class MainClass:
                         lock = threading.Lock()
                         lock.acquire()
 
-                        if(self.ToFFrameResult(frametype, ctypes.byref(self.ToFFrame)) == 1):
-                            image = ctypes.cast(self.ToFFrame.frame_data, POINTER(ctypes.c_uint16))
-                            image_data = np.ctypeslib.as_array(image, (PRE_IR_HEIGHT, PRE_IR_WIDTH, 1))
+                        if(self.ToFFrameResult(self.deviceHandle, frametype, ctypes.byref(self.ToFFrameIR)) == 1):
+                            if bool(self.ToFFrameIR.frame_data):
+                                expected_size = PRE_IR_HEIGHT * PRE_IR_WIDTH * 2
+                                actual_size = self.ToFFrameIR.size
+                                if actual_size == expected_size:
+                                    image_IR = ctypes.cast(self.ToFFrameIR.frame_data, POINTER(ctypes.c_uint16))
+                                    image_data_IR = np.ctypeslib.as_array(image_IR, (PRE_IR_HEIGHT, PRE_IR_WIDTH, 1))
 
-                            #Releasing thread lock
-                            lock.release()
+                                    #Releasing thread lock
+                                    lock.release()
 
-                            if(lock.locked() == 0):
-                                #capture frame condition
-                                if(self.IR_cap == True):
-                                    time=datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
-                                    file_name = "DepthVista_IR_"+time+".png"
-                                    cv2.imwrite(file_name, image_data)
-                                    self.IR_cap=False
-                                #Stream show
-                                cv2.namedWindow("DepthVista_IR_frame",cv2.WINDOW_GUI_NORMAL)
-                                cv2.setWindowProperty("DepthVista_IR_frame", cv2.WND_PROP_AUTOSIZE, cv2.WINDOW_FULLSCREEN)
-                                cv2.imshow("DepthVista_IR_frame",image_data)
-                                cv2.waitKey(1)
-
-                        else:
-                            print("\nFailed in getting TOF frames")
+                                    if(lock.locked() == 0):
+                                        #capture frame condition
+                                        if(self.IR_cap == True):
+                                            time=datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
+                                            file_name = "DepthVista_IR_"+time+".png"
+                                            cv2.imwrite(file_name, image_data_IR)
+                                            self.IR_cap=False
+                                        #Stream show
+                                        cv2.namedWindow("DepthVista_IR_frame",cv2.WINDOW_GUI_NORMAL)
+                                        cv2.setWindowProperty("DepthVista_IR_frame", cv2.WND_PROP_AUTOSIZE, cv2.WINDOW_FULLSCREEN)
+                                        cv2.imshow("DepthVista_IR_frame",image_data_IR)
+                                        cv2.waitKey(1)
             
             self.depthStreamStarted=False
             self.save_possible = False
@@ -499,15 +548,16 @@ class MainClass:
     def propertiesMenu(self):
         propertiesMenuOptions = {
             0: self.main_menu_exit,
-            1: self.__init__,
+            1: self.listDevices,
             2: self.streamingMode,
             3: self.depthRange,
             4: self.Planarization,
             5: self.depthUndistortion,
-            6: self.captureFrames,
-            7: self.uniqueId,
-            8: self.readFirmwareVersion,
-            9: self.getDepthValue,
+            6: self.rgbDMapping,
+            7: self.captureFrames,
+            8: self.uniqueId,
+            9: self.readFirmwareVersion,
+            10: self.getDepthValue,
         }
         while True:
             print("CAMERA PROPERTIES MENU".center(100, "*"))
@@ -517,10 +567,11 @@ class MainClass:
             print("\t3.Depth Range")
             print("\t4.Planarization")
             print("\t5.Depth Undistortion")
-            print("\t6.Capture Frames")
-            print("\t7.Unique Id")
-            print("\t8.Read Firmware Version")
-            print("\t9.Get Depth value\n")
+            print("\t6.RGB-D Mapping")
+            print("\t7.Capture Frames")
+            print("\t8.Unique Id")
+            print("\t9.Read Firmware Version")
+            print("\t10.Get Depth value\n")
 
             choice = get_integer("Pick a Relevant Type Of Camera Properties :\t", min(propertiesMenuOptions, key=int),max(propertiesMenuOptions, key=int))
             time.sleep(0.5)
@@ -547,7 +598,7 @@ class MainClass:
             8: DataMode.RGB_VGA_Mode,
             9: DataMode.RGB_HD_Mode,
             10: DataMode.RGB_Full_HD_Mode,
-            11: DataMode.RGB_Original_Mode,
+            11: DataMode.RGB_1200p_Mode,
         }
 
         while True:
@@ -608,7 +659,7 @@ class MainClass:
     '''
     def getdatamode(self):
         datamode=ctypes.c_int32()
-        if(self.getDataMode(ctypes.byref(datamode)) == 1):
+        if(self.getDataMode(self.deviceHandle, ctypes.byref(datamode)) == 1):
             return datamode.value
         else:
             print("Datamode get failed")
@@ -618,30 +669,22 @@ class MainClass:
         DESCRIPTION : This method sets the datamode
     '''
     def setdatamode(self, datamode=ctypes.c_int32):
-        if(self.setdatamodevar(datamode) < 1):
+        if(self.setdataMode(self.deviceHandle, datamode) < 1):
             print("Datamode set failed")
 
     def getdepthrange(self):
         depthrange=ctypes.c_int16()
-        if(self.getDepthRange(ctypes.byref(depthrange)) == 1):
+        if(self.getDepthRange(self.deviceHandle, ctypes.byref(depthrange)) == 1):
             return depthrange.value
         else:
             print("DepthRange get failed")
-
-    '''
-        METHOD NAME : setdepthrange
-        DESCRIPTION : This method sets the depthrange
-    '''
-    def setdepthrange(self, depthrange=ctypes.c_int16):
-        if(self.setDepthRange(depthrange) < 1):
-            print("DepthRange set failed")
    
     '''
         METHOD NAME : setavgregion
         DESCRIPTION : This method sets the avgregion
     '''
     def setavgregion(self, avgregion=ctypes.c_int16):
-        if(self.setAvgRegion(avgregion) < 1):
+        if(self.setAvgRegion(self.deviceHandle, avgregion) < 1):
             print("Average Region set failed")
 
     '''
@@ -676,11 +719,12 @@ class MainClass:
     '''
     def nearMode(self):
         global depth_max, depth_min
-        if(self.setDepthRange(0) < 1):
+        if(self.setDepthRange(self.deviceHandle, 0) < 1):
             print("\nNear mode set failed")
         else:
             depth_min = 200
-            depth_max = 1500
+            depth_max = 1200
+            self.depthrange = 0
             print("\nDepth Range Near")
         self.propertiesMenu()
 
@@ -690,11 +734,12 @@ class MainClass:
     '''
     def farMode(self):
         global depth_max, depth_min
-        if(self.setDepthRange(1) < 1):
+        if(self.setDepthRange(self.deviceHandle, 1) < 1):
             print("\nFar mode set failed")
         else:
-            depth_min = 500
-            depth_max = 3250
+            depth_min = 1000
+            depth_max = 6000
+            self.depthrange = 1
             print("\nDepth Range Far")
         self.propertiesMenu()
 
@@ -706,7 +751,7 @@ class MainClass:
         planarizationMenuOptions = {
             0: self.main_menu_exit,
             1: self.propertiesMenu,
-            2: self.__init__,
+            2: self.propertiesMenu,
             3: self.planarizationOff,
             4: self.planarizationOn,
             }
@@ -729,7 +774,7 @@ class MainClass:
         DESCRIPTION : Turns OFF planarization at the instance of call
     '''
     def planarizationOff(self):
-        if(self.setPlanarization(0) < 1):
+        if(self.setPlanarization(self.deviceHandle, 0) < 1):
             print("\nDepth Planarization OFF failed")
         else:
             print("\nDepth Planarization OFF")
@@ -740,11 +785,68 @@ class MainClass:
         DESCRIPTION : Turns ON planarization at the instance of call
     '''
     def planarizationOn(self):
-        if(self.setPlanarization(1) < 1):
+        if(self.setPlanarization(self.deviceHandle, 1) < 1):
             print("\nDepth Planarization ON failed")
         else:
             print("\nDepth Planarization ON")
         self.propertiesMenu()
+
+
+    '''
+        METHOD NAME : rgbDMapping
+        DESCRIPTION : Lists the distortion mode options available and gets the user input to transfer control
+    '''
+    def rgbDMapping(self):
+        rgbDMappingMenuOptions = {
+            0: self.main_menu_exit,
+            1: self.propertiesMenu,
+            2: self.__init__,
+            3: self.rgbDMappingOff,
+            4: self.rgbDMappingOn,
+            }
+        while True:
+            print("DEPTH RGB-D MAPPING MODE MENU".center(100, "*"))
+            print("\n\t0.Exit")
+            print("\t1.Back")
+            print("\t2.Main Menu")
+            print("\t3.RGB-D Mapping OFF")
+            print("\t4.RGB-D Mapping ON")
+
+            choice = get_integer("\nPick a relevant RGB-D Mapping mode :\t", min(rgbDMappingMenuOptions, key=int),max(rgbDMappingMenuOptions, key=int))
+            func = rgbDMappingMenuOptions.get(choice, lambda: "Invalid Selection")
+
+            if not func():
+                self.main_menu_exit()
+
+    '''
+        METHOD NAME : rgbDMappingOff
+        DESCRIPTION : Turns OFF RGB-D Mapping at the instance of call
+    '''
+    def rgbDMappingOff(self):
+        global rgbdMappingflag
+        if(self.setRGBDMapping(self.deviceHandle,0) < 1):
+            print("\nDepth RGB-D Mapping OFF failed")
+        else:
+            rgbdMappingflag = False
+            print("\nDepth RGB-D Mapping OFF")
+        self.propertiesMenu()
+
+    '''
+        METHOD NAME : rgbDMappingOn
+        DESCRIPTION : Turns ON RGB-D Mapping at the instance of call
+    '''
+    def rgbDMappingOn(self):
+        global calibParamObtained, rgbdMappingflag
+        if calibParamObtained:
+            if(self.setRGBDMapping(self.deviceHandle,1) < 1):
+                print("\nDepth RGB-D Mapping ON failed")
+            else:
+                rgbdMappingflag = True
+                print("\nDepth RGB-D Mapping ON")
+        else:
+            print("\nCalibration Data Not Found")
+        self.propertiesMenu()
+
 
     '''
         METHOD NAME : depthUndistortion
@@ -754,7 +856,7 @@ class MainClass:
         depthUndistortionMenuOptions = {
             0: self.main_menu_exit,
             1: self.propertiesMenu,
-            2: self.__init__,
+            2: self.propertiesMenu,
             3: self.undistortionOff,
             4: self.undistortionOn,
             }
@@ -777,7 +879,7 @@ class MainClass:
         DESCRIPTION : Turns OFF Undistortion at the instance of call
     '''
     def undistortionOff(self):
-        if(self.setUnDistortion(0) < 1):
+        if(self.setUnDistortion(self.deviceHandle, 0) < 1):
             print("\nDepth Undistortion OFF failed")
         else:
             print("\nDepth Undistortion OFF")
@@ -788,7 +890,7 @@ class MainClass:
         DESCRIPTION : Turns ON Undistortion at the instance of call
     '''
     def undistortionOn(self):
-        if(self.setUnDistortion(1) < 1):
+        if(self.setUnDistortion(self.deviceHandle, 1) < 1):
             print("\nDepth Undistortion ON failed")
         else:
             print("\nDepth Undistortion ON")
@@ -799,13 +901,19 @@ class MainClass:
         DESCRIPTION : Captures frame that is shown at the instance of call
     '''
     def captureFrames(self):
+        global rgbdMappingflag
         if(self.save_possible == True):
             if(self.datamode != DataMode.IR_Mode.value) and (self.datamode <= DataMode.Depth_IR_RGB_HD_Mode.value):
+                print("3D files saving might take some time. Please wait!!!")
                 self.depth_cap = True
-            if(self.datamode >= DataMode.Depth_IR_RGB_VGA_Mode.value) and (self.datamode != DataMode.Raw_Mode.value):
+            if(self.datamode >= DataMode.Depth_IR_RGB_VGA_Mode.value):
                 self.rgb_cap = True
             if(self.datamode != DataMode.Depth_Mode.value) and (self.datamode <=DataMode.Depth_IR_RGB_HD_Mode.value):
                 self.IR_cap = True
+            time.sleep(2)
+            while 1:
+                if(self.depth_cap == False) and (self.rgb_cap == False) and (self.IR_cap == False):
+                    break
             print("\nFrame Captured")
         else:
             print("\nImage capture failed, Please start Preview Before Capturing Frames")
@@ -818,7 +926,7 @@ class MainClass:
     def uniqueId(self):
         uniqueID = ctypes.c_uint64()
         
-        if(self.getUniqueID(ctypes.byref(uniqueID)) < 1):
+        if(self.getUniqueID(self.deviceHandle, ctypes.byref(uniqueID)) < 1):
             print("\nUnique ID read failed")
         else:
             print("\nUnique ID of the Camera is ",uniqueID.value)
@@ -834,7 +942,7 @@ class MainClass:
         gMinorVersion2 = ctypes.c_uint16()
         gMinorVersion3 = ctypes.c_uint16()
     
-        if(self.readfirmwareVersion(ctypes.byref(gMajorVersion), ctypes.byref(gMinorVersion1), ctypes.byref(gMinorVersion2), ctypes.byref(gMinorVersion3)) < 1):
+        if(self.readfirmwareVersion(self.deviceHandle, ctypes.byref(gMajorVersion), ctypes.byref(gMinorVersion1), ctypes.byref(gMinorVersion2), ctypes.byref(gMinorVersion3)) < 1):
             print("\nFirmware version Read failed")
         else:
             FWV = '.'.join(str(x) for x in [gMajorVersion.value, gMinorVersion1.value, gMinorVersion2.value, gMinorVersion3.value])
@@ -851,7 +959,7 @@ class MainClass:
                     livemouseptr = DepthPtr()
                     livemouseptr.X = x
                     livemouseptr.Y = y
-                    if(self.setDepthPos(livemouseptr)<1):
+                    if(self.setDepthPos(self.deviceHandle, livemouseptr)<1):
                         print("\n Failed to set mouse position")
 
     '''
@@ -862,8 +970,8 @@ class MainClass:
         depthvalueMenuOptions = {
             0: self.main_menu_exit,
             1: self.propertiesMenu,
-            2: self.__init__,
-            3: self.getdepthvalue_,
+            2: self.propertiesMenu,
+            3: self.getdepthvaluecentre,
             4: self.getdepthvaluecustom,
             }
         
@@ -887,18 +995,27 @@ class MainClass:
             self.propertiesMenu()
 
     '''
-        METHOD NAME : getdepthvalue_
+        METHOD NAME : getdepthvaluecentre
         DESCRIPTION : Prints the average depth value of centre of the frame
     '''
-    def getdepthvalue_(self):
-        avgDepth = ctypes.c_int()
-        stdDepth = ctypes.c_int()
-        avgIR = ctypes.c_int()
-        stdIR = ctypes.c_int()
-        if(self.getDepthIRValues(ctypes.byref(avgDepth), ctypes.byref(stdDepth), ctypes.byref(avgIR), ctypes.byref(stdIR)) < 1):
-            print("\nFailed to get Depth value")
+    def getdepthvaluecentre(self):
+
+        ptr = DepthPtr()
+
+        ptr.X = ctypes.c_int(int(320)).value
+        ptr.Y = ctypes.c_int(int(240)).value
+
+        if(self.setDepthPos(self.deviceHandle, ptr) < 1):
+            print("\n Failed to set position")
         else:
-            print("\nDepth value :\t", avgDepth.value)
+            avgDepth = ctypes.c_int()
+            stdDepth = ctypes.c_int()
+            avgIR = ctypes.c_int()
+            stdIR = ctypes.c_int()
+            if(self.getDepthIRValues(self.deviceHandle, ctypes.byref(avgDepth), ctypes.byref(stdDepth), ctypes.byref(avgIR), ctypes.byref(stdIR)) < 1):
+                print("\nFailed to get Depth value")
+            else:
+                print("\nDepth value :\t", avgDepth.value)
         self.propertiesMenu()
 
     '''
@@ -915,10 +1032,17 @@ class MainClass:
         ptr.X = ctypes.c_int(int(x_pos)).value
         ptr.Y = ctypes.c_int(int(y_pos)).value
 
-        if(self.setDepthPos(ptr) < 1):
+        if(self.setDepthPos(self.deviceHandle, ptr) < 1):
             print("\n Failed to set position")
         else:
-            self.getdepthvalue_()
+            avgDepth = ctypes.c_int()
+            stdDepth = ctypes.c_int()
+            avgIR = ctypes.c_int()
+            stdIR = ctypes.c_int()
+            if(self.getDepthIRValues(self.deviceHandle, ctypes.byref(avgDepth), ctypes.byref(stdDepth), ctypes.byref(avgIR), ctypes.byref(stdIR)) < 1):
+                print("\nFailed to get Depth value")
+            else:
+                print("\nDepth value :\t", avgDepth.value)
         self.propertiesMenu()
 
     '''
@@ -933,10 +1057,129 @@ class MainClass:
             if(self.thread_lock_flag == True):
                 self.thread_lock.release()
             time.sleep(0.5)
-            if(self.closeDeviceResult()==1):
+            if(self.closeDeviceResult(self.deviceHandle)==1):
                 if(self.deinitializeResult()==1):
                     cv2.destroyAllWindows()
         exit(0)
+
+    def read_calibration_data(self):
+        global depth_intrinsic, rgb_intrinsic, rgbHD_intrinsic, calibParamObtained
+        read_length_depth = ctypes.c_int()
+
+        if not calibParamObtained:
+            readDepthIntrinsic = cv2.FileStorage()
+            readDepthIntrinsic.open("depth_intrinsic.yml", cv2.FileStorage_READ)
+
+            if not readDepthIntrinsic.isOpened():
+                print("depth_intrinsic.yml is not found, please make sure the file is in the directory")
+            else:
+                sccm_d_node = readDepthIntrinsic.getNode("SCCM_D")
+                if sccm_d_node.isNone():
+                    print("SCCM_D parameter is not present in the file")
+                else:
+                    depth_intrinsic = sccm_d_node.mat()
+
+            readRGBIntrinsic = cv2.FileStorage()
+            readRGBIntrinsic.open("rgb_intrinsic.yml", cv2.FileStorage_READ)
+
+            if not readRGBIntrinsic.isOpened():
+                print("rgb_intrinsic.yml is not found, please make sure the file is in the directory")
+            else:
+                sccm_rgb_node = readRGBIntrinsic.getNode("SCCM_RGB")
+                if sccm_rgb_node.isNone():
+                    print("SCCM_RGB parameter is not present in the file")
+                else:
+                    rgb_intrinsic = sccm_rgb_node.mat()
+
+            if rgb_intrinsic is not None and rgb_intrinsic.shape[0] > 0 and rgb_intrinsic.shape[1] > 0:
+                sccm_rgbHD_node = readRGBIntrinsic.getNode("SCCM_RGB_HD")
+                if sccm_rgbHD_node.isNone():
+                    rgbHD_intrinsic = np.array([
+                        [rgb_intrinsic[0, 0] * 1.67, rgb_intrinsic[0, 1], rgb_intrinsic[0, 2] * 2.00],
+                        [rgb_intrinsic[1, 0], rgb_intrinsic[1, 1] * 1.67, rgb_intrinsic[1, 2] * 1.5],
+                        [rgb_intrinsic[2, 0], rgb_intrinsic[2, 1], rgb_intrinsic[2, 2]]
+                    ])
+                else:
+                    rgbHD_intrinsic = sccm_rgbHD_node.mat()
+            else:
+                print("Invalid or missing rgb_intrinsic")
+
+        if rgb_intrinsic is not None and rgb_intrinsic.shape[0] > 0 and rgb_intrinsic.shape[1] > 0:
+            rgbIntrinsicData = True
+        else:
+            rgbIntrinsicData = False
+
+        if rgbHD_intrinsic is not None and rgbHD_intrinsic.shape[0] > 0 and rgbHD_intrinsic.shape[1] > 0:
+            hdCalibration = True
+        else:
+            hdCalibration = False
+
+        if depth_intrinsic is not None and depth_intrinsic.shape[0] > 0 and depth_intrinsic.shape[1] > 0:
+            depthIntrinsicData = True
+        else:
+            depthIntrinsicData = False
+
+        if rgbIntrinsicData and depthIntrinsicData:
+            calibParamObtained = True
+
+    def save_ply_files(self, Intrinsic, Depth, rgbFrame, fileName):
+        global depth_min, depth_max, depth_range
+
+        if Intrinsic is None or Depth is None:
+            return -2
+
+        focalLengthx = Intrinsic[0, 0]
+        focalLengthy = Intrinsic[1, 1]
+        principlePointx = Intrinsic[0, 2]
+        principlePointy = Intrinsic[1, 2]
+
+        DepthFloat = np.float32(Depth)
+        zoom_factor = 1.0
+
+        points = []
+        for v in range(DepthFloat.shape[0]):
+            for u in range(DepthFloat.shape[1]):
+                Z = DepthFloat[v, u] / zoom_factor
+                raw_depth = Depth[v, u]
+                if raw_depth > depth_max or raw_depth < depth_min:
+                    continue
+
+                z = Z
+                x = (u - principlePointx) * Z / focalLengthx
+                y = ((v - principlePointy) * Z / focalLengthy)
+
+                pclPoint = {
+                    'xyz': [x / 1000, -y / 1000, -z / 1000],  # Assuming METER_TO_MILLIMETER = 1000
+                    'rgb': rgbFrame[v, u][::-1]  # BGR to RGB
+                }
+
+                points.append(pclPoint)
+
+        if not points:
+            return -1
+
+        # Save to the ply file
+        PLY_START_HEADER = "ply"
+        PLY_END_HEADER = "end_header"
+        PLY_ASCII = "format ascii 1.0"
+        PLY_ELEMENT_VERTEX = "element vertex"
+
+        with open(fileName, 'w') as ofs:
+            ofs.write(PLY_START_HEADER + '\n')
+            ofs.write(PLY_ASCII + '\n')
+            ofs.write(PLY_ELEMENT_VERTEX + ' ' + str(len(points)) + '\n')
+            ofs.write("property float x\n")
+            ofs.write("property float y\n")
+            ofs.write("property float z\n")
+            ofs.write("property uchar red\n")
+            ofs.write("property uchar green\n")
+            ofs.write("property uchar blue\n")
+            ofs.write(PLY_END_HEADER + '\n')
+
+        with open(fileName, 'a') as ofs_text:
+            for pclPoint in points:
+                ofs_text.write(f"{pclPoint['xyz'][0]} {pclPoint['xyz'][1]} {pclPoint['xyz'][2]} ")
+                ofs_text.write(f"{pclPoint['rgb'][0]} {pclPoint['rgb'][1]} {pclPoint['rgb'][2]}\n")
 
 if __name__ == '__main__':
     main = MainClass()
