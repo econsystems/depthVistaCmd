@@ -46,6 +46,10 @@ Sample command line application, opens the device, gets stream, and enables the 
 
 * SDK and console application bug fixes
 
+## Refer other sample source
+
+- Refer DepthVista GUI application sample source using [this page](https://github.com/econsystems/DepthVista)
+
 ## Support
 
 If you need assistance, visit at https://www.e-consystems.com/create-ticket.asp or contact us at techsupport@e-consystems.com
