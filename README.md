@@ -30,6 +30,7 @@ Sample command line application, opens the device, gets stream, and enables the 
 
 - Run the DepthVistaConsole application using [this User Manual](https://github.com/econsystems/depthVistaCmd/tree/master/windows/Documents)
 
+- Know more about RGB-D mapping using [this User Manual](https://github.com/econsystems/depthVistaCmd/tree/master/windows/Documents)
 
 ## Releases
 
