@@ -1,26 +1,63 @@
 
-
 # DepthVistaCmd : Command Line application with DepthVistaSDK (CPP & Python)
 
 Sample command line application, opens the device, gets stream, and enables the user to control some basic TOF Camera Controls. 
 
+## Prerequisite
+
+* CMake (version 3.5 and above)
+* OpenCV library (version 4.5.4 and above)
+
+
 ## Supported Platforms:
 
-* Windows 8.1 , 10 , 11
-* Ubuntu 18.04 , 20.04 (64 bit )
-* ARM - Ubuntu 18.04, Ubuntu 20.04
+* Windows 10 , 11
+* Ubuntu 20.04 (64 bit ), 22.04 (64bit)
+* ARM - Ubuntu 22.04
 
-## Supported Camera controls:
+## Supported Camera controls for See3CAM_TOF_25CUG:
 
 * Streaming Mode
-* Depth Range
-* Planarization
-* Depth Undistortion
+* TOF Controls
+    * Depth Range
+    * TOF Coring
+    * IR Gain
+    * IMU Embedded data
+* Post Processing
+    * Planarization
+    * Temporal Filter
+    * Undistort depth
+    * Flying Pixel filter
+    * 3D Noice Reduction filter
+    * Depth Extrapolation filter
+    * Depth Spatial Filter
 * Capture Frames
 * Unique ID
 * Read Firmware Version
 * Get Depth value
 
+## Supported Camera controls for See3CAM_TOF_CU13 and STURDeCAM13_TOF:
+
+* Streaming Mode
+* Capture Frames
+* Depth Denoise
+* Confidence Threshold
+* Integration Time
+* TOF IR Gain
+* Flying Pixel Filter
+* Get Temperature data
+* Post Processing
+    * Planarization
+    * Temporal Filter
+    * Undistort depth
+    * Depth Spatial Filter
+* Confidence Mode
+* AVG Depth
+* Unique ID
+* Read Firmware Version
+* Serial Numbe
+* Laser Safety
+* FPS Control
 
 ## How to Use
 
@@ -42,6 +79,7 @@ Sample command line application, opens the device, gets stream, and enables the 
 * DepthVistaCmd v1.0.1		-	02-Nov-2022
 * DepthVistaCmd v1.0.3		-	15-Dec-2023
 * DepthVistaCmd v1.0.11		-	22-Jan-2025
+* DepthVistaCmd v1.0.0.15		-	03-Jun-2026
 
 ## What's new
 

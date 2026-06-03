@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.14.37027.9 d17.14
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "DepthVistaConsoleApp", "DepthVistaConsoleApp\DepthVistaConsoleApp.vcxproj", "{786CDEB7-EAAF-48A3-A10E-D5F1B7EE0C41}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x64 = Debug|x64
+		Debug|x86 = Debug|x86
+		Release|x64 = Release|x64
+		Release|x86 = Release|x86
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{786CDEB7-EAAF-48A3-A10E-D5F1B7EE0C41}.Debug|x64.ActiveCfg = Debug|x64
+		{786CDEB7-EAAF-48A3-A10E-D5F1B7EE0C41}.Debug|x64.Build.0 = Debug|x64
+		{786CDEB7-EAAF-48A3-A10E-D5F1B7EE0C41}.Debug|x86.ActiveCfg = Debug|Win32
+		{786CDEB7-EAAF-48A3-A10E-D5F1B7EE0C41}.Debug|x86.Build.0 = Debug|Win32
+		{786CDEB7-EAAF-48A3-A10E-D5F1B7EE0C41}.Release|x64.ActiveCfg = Release|x64
+		{786CDEB7-EAAF-48A3-A10E-D5F1B7EE0C41}.Release|x64.Build.0 = Release|x64
+		{786CDEB7-EAAF-48A3-A10E-D5F1B7EE0C41}.Release|x86.ActiveCfg = Release|Win32
+		{786CDEB7-EAAF-48A3-A10E-D5F1B7EE0C41}.Release|x86.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {310F27A0-DB42-47B2-B4FD-9B828E731ADB}
+	EndGlobalSection
+EndGlobal
