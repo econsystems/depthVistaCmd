@@ -79,7 +79,7 @@ Sample command line application, opens the device, gets stream, and enables the 
 * DepthVistaCmd v1.0.1		-	02-Nov-2022
 * DepthVistaCmd v1.0.3		-	15-Dec-2023
 * DepthVistaCmd v1.0.11		-	22-Jan-2025
-* DepthVistaCmd v1.0.0.15		-	03-Jun-2026
+* DepthVistaCmd v1.0.15		-	03-Jun-2026
 
 ## What's new
 
